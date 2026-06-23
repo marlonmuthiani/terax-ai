@@ -56,6 +56,7 @@ pub fn build_command(
     blocks: bool,
     shell: Option<String>,
 ) -> Result<CommandBuilder, String> {
+    let shell = sanitize_shell_override(shell);
     #[cfg(unix)]
     {
         let _ = workspace;
@@ -64,6 +65,22 @@ pub fn build_command(
     #[cfg(windows)]
     {
         windows::build(cwd, workspace, blocks, shell)
+    }
+}
+
+// Honor the override only if it matches an enumerated shell, so a tampered
+// setting can't spawn an arbitrary binary across the IPC boundary.
+fn sanitize_shell_override(shell: Option<String>) -> Option<String> {
+    let candidate = shell.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())?;
+    let target = std::fs::canonicalize(&candidate).ok();
+    let allowed = list_shells().into_iter().any(|s| {
+        s.path == candidate || (target.is_some() && std::fs::canonicalize(&s.path).ok() == target)
+    });
+    if allowed {
+        Some(candidate)
+    } else {
+        log::warn!("ignoring non-enumerated shell override '{candidate}'");
+        None
     }
 }
 
@@ -503,6 +520,9 @@ mod windows {
                 }
             }
         } else if is_bash {
+            // git-bash's /etc/profile cd's to $HOME unless CHERE_INVOKING is
+            // set; keep the cwd we configured in apply_common.
+            cmd.env("CHERE_INVOKING", "1");
             // Native git-bash: same OSC 7/133 rcfile as Unix bash, in the
             // forward-slash form MSYS bash accepts.
             match prepare_bash_rcfile() {
@@ -1012,4 +1032,24 @@ fn which_in_path(name: &str) -> Option<PathBuf> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::sanitize_shell_override;
+
+    #[test]
+    fn rejects_non_enumerated_override() {
+        let exe = std::env::current_exe()
+            .unwrap()
+            .to_string_lossy()
+            .into_owned();
+        assert_eq!(sanitize_shell_override(Some(exe)), None);
+    }
+
+    #[test]
+    fn empty_or_missing_override_is_none() {
+        assert_eq!(sanitize_shell_override(Some("   ".into())), None);
+        assert_eq!(sanitize_shell_override(None), None);
+    }
 }
