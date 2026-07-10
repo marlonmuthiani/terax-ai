@@ -7,6 +7,7 @@ import {
   getAllKeys,
   hasAnyKey,
 } from "../lib/keyring";
+import { DYNAMIC_PROVIDERS, useDynamicModelsStore } from "../dynamicModels";
 import { useAgentsStore } from "../store/agentsStore";
 import { useChatStore } from "../store/chatStore";
 import { useSnippetsStore } from "../store/snippetsStore";
@@ -65,6 +66,9 @@ export function useAiBootstrap(): {
         if (!alive) return;
         setApiKeys(keys);
         setKeysLoaded(true);
+        for (const p of DYNAMIC_PROVIDERS) {
+          useDynamicModelsStore.getState().refresh(p, keys[p] ?? null);
+        }
       });
       if (!prefsHydrated) return;
       void getAllCustomEndpointKeys(

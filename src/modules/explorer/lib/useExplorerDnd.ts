@@ -39,9 +39,14 @@ export function useExplorerDnd({ rootPath, isDir, onMove }: Options) {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: placeGhost closes over refs only, stable across renders
   const ghostRef = useCallback((el: HTMLDivElement | null) => {
+    if (!el) {
+      ghostElRef.current = null;
+      return;
+    }
     ghostElRef.current = el;
-    if (el) placeGhost(lastPosRef.current.x, lastPosRef.current.y);
+    placeGhost(lastPosRef.current.x, lastPosRef.current.y);
   }, []);
 
   const onPointerDown = useCallback((e: ReactPointerEvent) => {
@@ -102,7 +107,9 @@ export function useExplorerDnd({ rootPath, isDir, onMove }: Options) {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     cleanupRef.current = detach;
-  }, []);
+    // placeGhost is stable for our purposes (closes over hexImage/dom only)
+    // biome-ignore lint/correctness/useExhaustiveDependencies: stable
+  }, [placeGhost]);
 
   const onClickCapture = useCallback((e: React.MouseEvent) => {
     if (suppressClickRef.current) {

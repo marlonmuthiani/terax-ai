@@ -6,7 +6,7 @@ import {
   type GitStatusSnapshot,
 } from "@/modules/ai/lib/native";
 import { useChatStore } from "@/modules/ai/store/chatStore";
-import { providerNeedsKey, resolveModel } from "@/modules/ai/config";
+import { providerRequiresKey, resolveModel } from "@/modules/ai/config";
 import {
   invalidateDiff,
   invalidateRepoDiffs,
@@ -370,7 +370,7 @@ export function useSourceControlPanel(
   const agentStatus = useChatStore((state) => state.agentMeta.status);
   const hasApiKeyForSelected = useChatStore((state) => {
     const model = resolveModel(state.selectedModelId);
-    return !providerNeedsKey(model.provider) || !!state.apiKeys[model.provider];
+    return !providerRequiresKey(model.provider) || !!state.apiKeys[model.provider];
   });
   const lmstudioModelId = usePreferencesStore((state) => state.lmstudioModelId);
   const mlxModelId = usePreferencesStore((state) => state.mlxModelId);

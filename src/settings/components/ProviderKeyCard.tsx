@@ -37,19 +37,26 @@ export function ProviderKeyCard({
   onClear,
   onRemove,
 }: Props) {
-  const [editing, setEditing] = useState(!currentKey);
+  const [editing, setEditing] = useState(!currentKey && !provider.keyOptional);
   const [value, setValue] = useState("");
   const [reveal, setReveal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setEditing(!currentKey);
-  }, [currentKey]);
+    setEditing(!currentKey && !provider.keyOptional);
+  }, [currentKey, provider.keyOptional]);
 
   const submit = async () => {
     const trimmed = value.trim();
     if (!trimmed) {
+      if (provider.keyOptional) {
+        setEditing(false);
+        setValue("");
+        setReveal(false);
+        setError(null);
+        return;
+      }
       setError("Enter your API key.");
       return;
     }
@@ -86,6 +93,13 @@ export function ProviderKeyCard({
               strokeWidth={2}
             />
             Connected
+          </Badge>
+        ) : provider.keyOptional ? (
+          <Badge
+            variant="outline"
+            className="ml-1 h-4 gap-1 border-border/60 bg-muted/40 px-1.5 text-[10px] font-normal text-muted-foreground"
+          >
+            Optional
           </Badge>
         ) : null}
         <button
@@ -175,13 +189,19 @@ export function ProviderKeyCard({
         </div>
       ) : (
         <div className="flex items-center gap-1.5">
-          <code
-            className={cn(
-              "flex-1 truncate rounded bg-muted/40 px-2 py-1 font-mono text-[11px] text-muted-foreground",
-            )}
-          >
-            {maskKey(currentKey ?? "")}
-          </code>
+          {!currentKey && provider.keyOptional ? (
+            <span className="flex-1 truncate text-[11px] text-muted-foreground">
+              Works on the free tier - no key required
+            </span>
+          ) : (
+            <code
+              className={cn(
+                "flex-1 truncate rounded bg-muted/40 px-2 py-1 font-mono text-[11px] text-muted-foreground",
+              )}
+            >
+              {maskKey(currentKey ?? "")}
+            </code>
+          )}
           <Button
             size="icon"
             variant="ghost"

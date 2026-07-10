@@ -48,7 +48,7 @@ import {
   getModel,
   isCompatModelId,
   MODELS,
-  providerNeedsKey,
+  providerRequiresKey,
   PROVIDERS,
   STT_PROVIDER_LABELS,
   type ModelCapabilities,
@@ -60,6 +60,7 @@ import { ACCEPTED_FILES, useComposer } from "../lib/composer";
 import { toggleFavoriteModel } from "../lib/modelPrefs";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { DYNAMIC_PROVIDERS, useDynamicModelsStore } from "../dynamicModels";
 
 const PROVIDER_ICON = {
   openai: ChatGptIcon,
@@ -75,6 +76,9 @@ const PROVIDER_ICON = {
   lmstudio: ComputerIcon,
   mlx: AppleIcon,
   ollama: ServerStack01Icon,
+  "opencode-zen": GlobeIcon,
+  "opencode-go": FlashIcon,
+  nvidia: CpuIcon,
 } as const satisfies Record<ProviderId, typeof ChatGptIcon>;
 
 export function AiOpenButton({ onOpen }: { onOpen: () => void }) {
@@ -223,12 +227,12 @@ function ModelDropdown() {
   const inputRef = useRef<HTMLInputElement>(null);
   const currentProviderHasKey = isCompatModelId(selected)
     ? true
-    : providerNeedsKey(current.provider)
+    : providerRequiresKey(current.provider)
       ? !!apiKeys[current.provider]
       : true;
 
   const hasKeyFor = (id: ProviderId) =>
-    providerNeedsKey(id) ? !!apiKeys[id] : true;
+    providerRequiresKey(id) ? !!apiKeys[id] : true;
 
   const epModelInfos = useMemo(() => {
     return customEndpoints.map((ep) =>
@@ -241,15 +245,20 @@ function ModelDropdown() {
     const unconfigured: (typeof PROVIDERS)[number][] = [];
     for (const p of PROVIDERS) {
       if (p.id === "openai-compatible") continue;
-      (hasKeyFor(p.id) ? configured : unconfigured).push(p);
+      const has = providerRequiresKey(p.id) ? !!apiKeys[p.id] : true;
+      (has ? configured : unconfigured).push(p);
     }
     return { configured, unconfigured };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKeys]);
 
+  const dynamicByProvider = useDynamicModelsStore((s) => s.byProvider);
   const allModels = useMemo(
-    () => [...MODELS, ...epModelInfos],
-    [epModelInfos],
+    () => [
+      ...MODELS,
+      ...epModelInfos,
+      ...DYNAMIC_PROVIDERS.flatMap((p) => dynamicByProvider[p]?.models ?? []),
+    ],
+    [epModelInfos, dynamicByProvider],
   );
 
   const COMPAT_PROVIDER_ID = "__compat__";

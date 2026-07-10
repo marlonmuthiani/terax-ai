@@ -5,7 +5,7 @@ import {
   endpointIdFromCompatModel,
   getModel,
   isCompatModelId,
-  providerNeedsKey,
+  providerRequiresKey,
   type ModelId,
   type ProviderId,
 } from "../config";
@@ -442,7 +442,7 @@ export function hasKeyForModel(modelId: string): boolean {
     return true;
   }
   const provider = getModel(modelId as ModelId).provider;
-  return providerNeedsKey(provider) ? !!apiKeys[provider] : true;
+  return providerRequiresKey(provider) ? !!apiKeys[provider] : true;
 }
 
 export function getChat(sessionId?: string): Chat<UIMessage> | undefined {

@@ -114,9 +114,10 @@ export const GraphRail = memo(function GraphRail({
       width={width}
       height={rowHeight}
       viewBox={`0 0 ${width} ${rowHeight}`}
-      aria-hidden
+      aria-hidden="true"
       className="shrink-0 overflow-visible"
     >
+      <title>{row.laneCount > 1 ? "Lane graph" : "Commit lane"}</title>
       {row.topEdges.map((e) => renderTopEdge(e, midY))}
       {row.bottomEdges.map((e) => renderBottomEdge(e, midY, rowHeight))}
       {/* Commit node */}

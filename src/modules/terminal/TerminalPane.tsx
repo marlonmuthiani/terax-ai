@@ -1,4 +1,3 @@
-import { useTheme } from "@/modules/theme";
 import type { SearchAddon } from "@xterm/addon-search";
 import {
   forwardRef,
@@ -53,7 +52,6 @@ export const TerminalPane = memo(
   ) {
     const containerRef = useRef<HTMLDivElement>(null);
     const downYRef = useRef<number | null>(null);
-    const { resolvedMode, themeId, customThemes } = useTheme();
 
     const session = useTerminalSession({
       leafId,
@@ -71,7 +69,7 @@ export const TerminalPane = memo(
       // Defer one frame so CSS-variable token resolution sees the new class.
       const id = requestAnimationFrame(() => session.applyTheme());
       return () => cancelAnimationFrame(id);
-    }, [resolvedMode, themeId, customThemes, session]);
+    }, [session]);
 
     useImperativeHandle(
       ref,

@@ -49,7 +49,7 @@ export async function runSubagent({
   const model = await buildLanguageModel(
     getModel(modelId as ModelId).provider,
     keys,
-    getModel(modelId as ModelId).id,
+    getModel(modelId as ModelId),
     { lmstudioBaseURL },
   );
 

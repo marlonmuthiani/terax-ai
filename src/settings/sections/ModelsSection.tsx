@@ -25,6 +25,7 @@ import {
   type ProviderId,
   type ProviderInfo,
   providerNeedsKey,
+  providerRequiresKey,
   STT_PROVIDER_LABELS,
   type SttProvider,
   WHISPERCPP_DEFAULT_BASE_URL,
@@ -291,7 +292,7 @@ export function ModelsSection() {
 
   const isConfigured = (id: ProviderId): boolean => {
     if (id === "openrouter") return !!keys?.[id] && !!openrouterModelId.trim();
-    if (!isLocalProvider(id)) return !!keys?.[id];
+    if (!isLocalProvider(id)) return !!keys?.[id] || !providerRequiresKey(id);
     const cfg = localConfig(id);
     if (!cfg) return false;
     if (id === "openai-compatible")
@@ -377,31 +378,26 @@ export function ModelsSection() {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            {visibleProviders.map((p) =>
-              p.id === "openrouter" ? (
-                <LocalProviderCard
-                  key={p.id}
-                  provider={p}
-                  configured={configuredIds.has(p.id)}
-                  config={localConfig(p.id)!}
-                  meta={LOCAL_META[p.id]!}
-                  compatKey={keys[p.id]}
-                  onSaveKey={(v) => onSaveKey(p.id, v)}
-                  onClearKey={() => onClearKey(p.id)}
-                  onRemove={() => removeProvider(p.id)}
-                />
-              ) : isLocalProvider(p.id) ? (
-                <LocalProviderCard
-                  key={p.id}
-                  provider={p}
-                  configured={configuredIds.has(p.id)}
-                  config={localConfig(p.id)!}
-                  meta={LOCAL_META[p.id]!}
-                  onSaveKey={(v) => onSaveKey(p.id, v)}
-                  onClearKey={() => onClearKey(p.id)}
-                  onRemove={() => removeProvider(p.id)}
-                />
-              ) : (
+            {visibleProviders.map((p) => {
+              if (p.id === "openrouter" || isLocalProvider(p.id)) {
+                const cfg = localConfig(p.id);
+                const meta = LOCAL_META[p.id];
+                if (!cfg || !meta) return null;
+                return (
+                  <LocalProviderCard
+                    key={p.id}
+                    provider={p}
+                    configured={configuredIds.has(p.id)}
+                    config={cfg}
+                    meta={meta}
+                    compatKey={p.id === "openrouter" ? keys[p.id] : undefined}
+                    onSaveKey={(v) => onSaveKey(p.id, v)}
+                    onClearKey={() => onClearKey(p.id)}
+                    onRemove={() => removeProvider(p.id)}
+                  />
+                );
+              }
+              return (
                 <ProviderKeyCard
                   key={p.id}
                   provider={p}
@@ -410,8 +406,8 @@ export function ModelsSection() {
                   onClear={() => onClearKey(p.id)}
                   onRemove={() => removeProvider(p.id)}
                 />
-              ),
-            )}
+              );
+            })}
             {customEndpoints.map((ep) => (
               <CustomEndpointCard
                 key={ep.id}
@@ -689,7 +685,7 @@ function AutocompleteRow({
     return map;
   }, [items]);
 
-  const hasKey = providerNeedsKey(provider) ? !!keys[provider] : true;
+  const hasKey = providerRequiresKey(provider) ? !!keys[provider] : true;
 
   return (
     <>
@@ -923,7 +919,7 @@ function LocalProviderCard({
                 value={contextDraft}
                 onChange={(e) => setContextDraft(e.target.value)}
                 onBlur={() => {
-                  const v = parseInt(contextDraft);
+                  const v = parseInt(contextDraft, 10);
                   if (Number.isFinite(v) && v >= 1000) void setContextLimit(v);
                   else setContextDraft(String(contextLimit ?? ""));
                 }}
@@ -1159,7 +1155,7 @@ function CustomEndpointCard({
                 value={contextDraft}
                 onChange={(e) => setContextDraft(e.target.value)}
                 onBlur={() => {
-                  const v = parseInt(contextDraft);
+                  const v = parseInt(contextDraft, 10);
                   if (Number.isFinite(v) && v >= 1000)
                     void onUpdate({ contextLimit: v });
                   else setContextDraft(String(endpoint.contextLimit ?? ""));

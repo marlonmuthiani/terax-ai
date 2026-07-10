@@ -1,5 +1,7 @@
 export const KEYRING_SERVICE = "terax-ai";
 
+import { getDynamicModelInfo } from "./dynamicModels";
+
 export type ProviderId =
   | "openai"
   | "anthropic"
@@ -13,7 +15,19 @@ export type ProviderId =
   | "openai-compatible"
   | "lmstudio"
   | "mlx"
-  | "ollama";
+  | "ollama"
+  | "opencode-zen"
+  | "opencode-go"
+  | "nvidia";
+
+/** Wire-protocol style used to reach a model. Lets one provider expose several
+ *  API versions (OpenAI Responses, Anthropic Messages, Google, OpenAI-compatible
+ *  chat/completions) through a single model catalog. */
+export type ProviderApiStyle =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "openai-compatible";
 
 export type ProviderInfo = {
   id: ProviderId;
@@ -118,6 +132,29 @@ export const PROVIDERS: readonly ProviderInfo[] = [
     keyPrefix: null,
     consoleUrl: "https://ollama.com/download",
   },
+  {
+    id: "opencode-zen",
+    label: "OpenCode Zen",
+    keyringAccount: "opencode-zen-api-key",
+    keyPrefix: "zen-",
+    consoleUrl: "https://opencode.ai/zen",
+    keyOptional: true,
+  },
+  {
+    id: "opencode-go",
+    label: "OpenCode Go",
+    keyringAccount: "opencode-go-api-key",
+    keyPrefix: "go-",
+    consoleUrl: "https://opencode.ai/go",
+    keyOptional: true,
+  },
+  {
+    id: "nvidia",
+    label: "NVIDIA",
+    keyringAccount: "nvidia-api-key",
+    keyPrefix: "nvapi-",
+    consoleUrl: "https://build.nvidia.com",
+  },
 ] as const;
 
 export type CustomEndpoint = {
@@ -182,9 +219,27 @@ export type ModelInfo = {
   hint: string;
   /** One-line marketing-style description shown under the label. */
   description: string;
-  capabilities: ModelCapabilities;
+   capabilities: ModelCapabilities;
   tags?: readonly ModelTag[];
+  /** How to reach this model over the wire. Defaults by provider when omitted. */
+  apiStyle?: ProviderApiStyle;
 };
+
+/** Prefix applied to model ids for dynamic/aggregator providers so they never
+ *  collide with the canonical ids of the same underlying model. Stripped at
+ *  request time in `buildLanguageModel`. */
+export const MODEL_ID_PREFIX: Record<"opencode-zen" | "opencode-go" | "nvidia", string> = {
+  "opencode-zen": "zen/",
+  "opencode-go": "go/",
+  "nvidia": "nvidia/",
+};
+
+export function apiModelId(model: ModelInfo): string {
+  const prefix = MODEL_ID_PREFIX[model.provider as keyof typeof MODEL_ID_PREFIX];
+  return prefix && model.id.startsWith(prefix)
+    ? model.id.slice(prefix.length)
+    : model.id;
+}
 
 export const MODELS = [
   // ── OpenAI ────────────────────────────────────────────────────────────────
@@ -558,6 +613,587 @@ export const MODELS = [
     description: "Local models via Ollama.",
     capabilities: { intelligence: 3, speed: 3, cost: 5 },
   },
+
+  // ── OpenCode Zen ──────────────────────────────────────────────────────────
+  // Aggregator over OpenAI / Anthropic / Google / open-weight models. Keyless
+  // on the free tier; pass a `zen-` key for higher limits. apiStyle selects
+  // which SDK/endpoint reaches each model (all API versions supported).
+  {
+    id: "zen/gpt-5.5",
+    provider: "opencode-zen",
+    label: "Zen · GPT-5.5",
+    hint: "Flagship",
+    description: "OpenAI flagship via Zen (Responses API).",
+    capabilities: { intelligence: 5, speed: 3, cost: 1 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/gpt-5.5-pro",
+    provider: "opencode-zen",
+    label: "Zen · GPT-5.5 Pro",
+    hint: "Max",
+    description: "Highest-accuracy GPT via Zen (Responses API).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/gpt-5.4-mini",
+    provider: "opencode-zen",
+    label: "Zen · GPT-5.4 mini",
+    hint: "Fast",
+    description: "Snappy GPT tier via Zen (Responses API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["vision", "tools"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/gpt-5.4-nano",
+    provider: "opencode-zen",
+    label: "Zen · GPT-5.4 nano",
+    hint: "Fastest",
+    description: "Tiny, instant GPT via Zen — great for autocomplete.",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["tools"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/gpt-5.3-codex",
+    provider: "opencode-zen",
+    label: "Zen · GPT-5.3 Codex",
+    hint: "Coding",
+    description: "Code-tuned GPT via Zen (Responses API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 3 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/gpt-4.1-mini",
+    provider: "opencode-zen",
+    label: "Zen · GPT-4.1 mini",
+    hint: "Cheap",
+    description: "Ultra-cheap GPT workhorse via Zen (Responses API).",
+    capabilities: { intelligence: 3, speed: 4, cost: 5 },
+    tags: ["vision", "tools"],
+    apiStyle: "openai",
+  },
+  {
+    id: "zen/claude-opus-4-8",
+    provider: "opencode-zen",
+    label: "Zen · Claude Opus 4.8",
+    hint: "Best",
+    description: "Anthropic flagship via Zen (Messages API).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "zen/claude-opus-4-7",
+    provider: "opencode-zen",
+    label: "Zen · Claude Opus 4.7",
+    hint: "Previous",
+    description: "Previous-gen Opus via Zen (Messages API).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "zen/claude-sonnet-4-6",
+    provider: "opencode-zen",
+    label: "Zen · Claude Sonnet 4.6",
+    hint: "Balanced",
+    description: "Balanced Claude via Zen (Messages API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 3 },
+    tags: ["vision", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "zen/claude-haiku-4-5",
+    provider: "opencode-zen",
+    label: "Zen · Claude Haiku 4.5",
+    hint: "Fast",
+    description: "Quick Claude via Zen (Messages API).",
+    capabilities: { intelligence: 3, speed: 5, cost: 4 },
+    tags: ["vision", "tools"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "zen/claude-opus-4-6",
+    provider: "opencode-zen",
+    label: "Zen · Claude Opus 4.6",
+    hint: "Legacy",
+    description: "Legacy Opus via Zen (Messages API).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "zen/gemini-3.5-flash",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 3.5 Flash",
+    hint: "Fast",
+    description: "Fast multimodal Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["vision", "tools", "coding"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/gemini-3.1-flash-lite",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 3.1 Flash-Lite",
+    hint: "Lite",
+    description: "Lightweight Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["vision", "tools"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/gemini-3.1-pro-preview",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 3.1 Pro",
+    hint: "Flagship",
+    description: "Strong-reasoning Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 5, speed: 3, cost: 2 },
+    tags: ["vision", "reasoning", "tools", "coding"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/gemini-3-flash-preview",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 3 Flash",
+    hint: "Fast",
+    description: "Fast Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["vision", "tools"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/gemini-2.5-pro",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 2.5 Pro",
+    hint: "Stable",
+    description: "Stable Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 4, speed: 3, cost: 3 },
+    tags: ["vision", "tools", "coding"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/gemini-2.5-flash",
+    provider: "opencode-zen",
+    label: "Zen · Gemini 2.5 Flash",
+    hint: "Cheap",
+    description: "Cheap Gemini via Zen (Generative AI API).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["vision", "tools"],
+    apiStyle: "google",
+  },
+  {
+    id: "zen/deepseek-v4-pro",
+    provider: "opencode-zen",
+    label: "Zen · DeepSeek V4 Pro",
+    hint: "Best",
+    description: "Open-weight code model via Zen (chat/completions).",
+    capabilities: { intelligence: 5, speed: 3, cost: 4 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/deepseek-v4-flash",
+    provider: "opencode-zen",
+    label: "Zen · DeepSeek V4 Flash",
+    hint: "Fast",
+    description: "Fast open-weight tier via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 5 },
+    tags: ["reasoning", "tools"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/deepseek-reasoner",
+    provider: "opencode-zen",
+    label: "Zen · DeepSeek Reasoner",
+    hint: "Thinking",
+    description: "Chain-of-thought via Zen (chat/completions).",
+    capabilities: { intelligence: 5, speed: 2, cost: 4 },
+    tags: ["reasoning", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/minimax-m2.7",
+    provider: "opencode-zen",
+    label: "Zen · MiniMax M2.7",
+    hint: "Thinking",
+    description: "MiniMax reasoning model via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/minimax-m2.5",
+    provider: "opencode-zen",
+    label: "Zen · MiniMax M2.5",
+    hint: "Fast",
+    description: "Fast MiniMax via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/qwen3.7-max",
+    provider: "opencode-zen",
+    label: "Zen · Qwen3.7 Max",
+    hint: "Flagship",
+    description: "Qwen flagship via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 3, cost: 3 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/qwen3.7-plus",
+    provider: "opencode-zen",
+    label: "Zen · Qwen3.7 Plus",
+    hint: "Balanced",
+    description: "Balanced Qwen via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/qwen3.6-plus",
+    provider: "opencode-zen",
+    label: "Zen · Qwen3.6 Plus",
+    hint: "Balanced",
+    description: "Qwen Plus via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/glm-4.7-flash",
+    provider: "opencode-zen",
+    label: "Zen · GLM 4.7 Flash",
+    hint: "Fast",
+    description: "Cheap GLM via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 5 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/glm-4.6",
+    provider: "opencode-zen",
+    label: "Zen · GLM 4.6",
+    hint: "Balanced",
+    description: "Balanced GLM via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/kimi-k2.6",
+    provider: "opencode-zen",
+    label: "Zen · Kimi K2.6",
+    hint: "Balanced",
+    description: "Kimi via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/kimi-k2.5",
+    provider: "opencode-zen",
+    label: "Zen · Kimi K2.5",
+    hint: "Balanced",
+    description: "Kimi via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/grok-4.20",
+    provider: "opencode-zen",
+    label: "Zen · Grok 4.20",
+    hint: "Flagship",
+    description: "Grok via Zen (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/big-pickle-2.5",
+    provider: "opencode-zen",
+    label: "Zen · Big Pickle 2.5",
+    hint: "Fast",
+    description: "Tiny fast model via Zen (chat/completions).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["tools"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/best-pickle-2.5",
+    provider: "opencode-zen",
+    label: "Zen · Best Pickle 2.5",
+    hint: "Fast",
+    description: "Tiny fast model via Zen (chat/completions).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["tools"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "zen/mimo-1.7b",
+    provider: "opencode-zen",
+    label: "Zen · Mimo 1.7B",
+    hint: "Fastest",
+    description: "Tiny on-device-class model via Zen (chat/completions).",
+    capabilities: { intelligence: 2, speed: 5, cost: 5 },
+    tags: ["tools"],
+    apiStyle: "openai-compatible",
+  },
+
+  // ── OpenCode Go ───────────────────────────────────────────────────────────
+  // Open-weight coding models. Keyless on the free tier; `go-` key for limits.
+  {
+    id: "go/glm-4.7-flash",
+    provider: "opencode-go",
+    label: "Go · GLM 4.7 Flash",
+    hint: "Fast",
+    description: "Cheap GLM via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 5 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/glm-4.6",
+    provider: "opencode-go",
+    label: "Go · GLM 4.6",
+    hint: "Balanced",
+    description: "Balanced GLM via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/kimi-k2.7-code",
+    provider: "opencode-go",
+    label: "Go · Kimi K2.7 Code",
+    hint: "Coding",
+    description: "Code-tuned Kimi via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/kimi-k2.6",
+    provider: "opencode-go",
+    label: "Go · Kimi K2.6",
+    hint: "Balanced",
+    description: "Kimi via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/deepseek-v4-pro",
+    provider: "opencode-go",
+    label: "Go · DeepSeek V4 Pro",
+    hint: "Best",
+    description: "Open-weight code model via Go (chat/completions).",
+    capabilities: { intelligence: 5, speed: 3, cost: 4 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/deepseek-v4-flash",
+    provider: "opencode-go",
+    label: "Go · DeepSeek V4 Flash",
+    hint: "Fast",
+    description: "Fast open-weight tier via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 5 },
+    tags: ["reasoning", "tools"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/mimo-1.7b",
+    provider: "opencode-go",
+    label: "Go · Mimo 1.7B",
+    hint: "Fastest",
+    description: "Tiny model via Go (chat/completions).",
+    capabilities: { intelligence: 2, speed: 5, cost: 5 },
+    tags: ["tools"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/minimax-m3",
+    provider: "opencode-go",
+    label: "Go · MiniMax M3",
+    hint: "Fast",
+    description: "Fast MiniMax via Go (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "go/minimax-m2.7",
+    provider: "opencode-go",
+    label: "Go · MiniMax M2.7",
+    hint: "Thinking",
+    description: "MiniMax reasoning via Go (Messages API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "go/minimax-m2.5",
+    provider: "opencode-go",
+    label: "Go · MiniMax M2.5",
+    hint: "Fast",
+    description: "Fast MiniMax via Go (Messages API).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "go/qwen3.7-max",
+    provider: "opencode-go",
+    label: "Go · Qwen3.7 Max",
+    hint: "Flagship",
+    description: "Qwen flagship via Go (Messages API).",
+    capabilities: { intelligence: 4, speed: 3, cost: 3 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "go/qwen3.7-plus",
+    provider: "opencode-go",
+    label: "Go · Qwen3.7 Plus",
+    hint: "Balanced",
+    description: "Balanced Qwen via Go (Messages API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "anthropic",
+  },
+  {
+    id: "go/qwen3.6-plus",
+    provider: "opencode-go",
+    label: "Go · Qwen3.6 Plus",
+    hint: "Balanced",
+    description: "Qwen Plus via Go (Messages API).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "anthropic",
+  },
+
+  // ── NVIDIA ────────────────────────────────────────────────────────────────
+  // NIM catalog. Requires an `nvapi-` key. OpenAI-compatible chat/completions.
+  {
+    id: "nvidia/nemotron-nano-9b-v2",
+    provider: "nvidia",
+    label: "NVIDIA · Nemotron Nano 9B",
+    hint: "Fast",
+    description: "Tiny Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/nemotron-nano-12b-v2",
+    provider: "nvidia",
+    label: "NVIDIA · Nemotron Nano 12B",
+    hint: "Fast",
+    description: "Small Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/nemotron-nano-21b-v2",
+    provider: "nvidia",
+    label: "NVIDIA · Nemotron Nano 21B",
+    hint: "Balanced",
+    description: "Mid Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/llama-3.3-nemotron-super-49b-v1",
+    provider: "nvidia",
+    label: "NVIDIA · Llama Nemotron Super 49B",
+    hint: "Flagship",
+    description: "Flagship Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 5, speed: 3, cost: 2 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+    provider: "nvidia",
+    label: "NVIDIA · Nemotron Ultra 253B",
+    hint: "Max",
+    description: "Largest Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/deepseek-v3-2",
+    provider: "nvidia",
+    label: "NVIDIA · DeepSeek V3.2",
+    hint: "Best",
+    description: "DeepSeek via NIM (chat/completions).",
+    capabilities: { intelligence: 5, speed: 3, cost: 3 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/glm-4.7",
+    provider: "nvidia",
+    label: "NVIDIA · GLM 4.7",
+    hint: "Balanced",
+    description: "GLM via NIM (chat/completions).",
+    capabilities: { intelligence: 4, speed: 4, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/gpt-oss-120b",
+    provider: "nvidia",
+    label: "NVIDIA · GPT-OSS 120B",
+    hint: "Ultra-fast",
+    description: "GPT-OSS on NIM silicon (chat/completions).",
+    capabilities: { intelligence: 4, speed: 5, cost: 4 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/gpt-oss-20b",
+    provider: "nvidia",
+    label: "NVIDIA · GPT-OSS 20B",
+    hint: "Fastest",
+    description: "Tiny GPT-OSS via NIM (chat/completions).",
+    capabilities: { intelligence: 3, speed: 5, cost: 5 },
+    tags: ["tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/qwen3-235b",
+    provider: "nvidia",
+    label: "NVIDIA · Qwen3 235B",
+    hint: "Flagship",
+    description: "Qwen3 via NIM (chat/completions).",
+    capabilities: { intelligence: 5, speed: 3, cost: 2 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
+  {
+    id: "nvidia/mistral-nemotron-ultra-235b",
+    provider: "nvidia",
+    label: "NVIDIA · Mistral Nemotron Ultra 235B",
+    hint: "Max",
+    description: "Mistral Nemotron via NIM (chat/completions).",
+    capabilities: { intelligence: 5, speed: 2, cost: 1 },
+    tags: ["reasoning", "tools", "coding"],
+    apiStyle: "openai-compatible",
+  },
 ] as const satisfies readonly ModelInfo[];
 
 export type ModelId = (typeof MODELS)[number]["id"];
@@ -585,18 +1221,29 @@ export function resolveModel(
 ): ModelInfo {
   if (isCompatModelId(modelId)) return getCompatModelInfo(modelId, endpoints);
   const m = MODELS.find((x) => x.id === modelId);
-  if (!m) throw new Error(`Unknown model: ${modelId}`);
-  return m;
+  if (m) return m;
+  const dyn = getDynamicModelInfo(modelId);
+  if (dyn) return dyn;
+  throw new Error(`Unknown model: ${modelId}`);
 }
 
 export function getModel(id: ModelId): ModelInfo {
   const m = MODELS.find((x) => x.id === id);
-  if (!m) throw new Error(`Unknown model: ${id}`);
-  return m;
+  if (m) return m;
+  const dyn = getDynamicModelInfo(id);
+  if (dyn) return dyn;
+  throw new Error(`Unknown model: ${id}`);
 }
 
 export function isKnownModelId(id: string): id is ModelId {
-  return MODELS.some((x) => x.id === id);
+  return (
+    MODELS.some((x) => x.id === id) ||
+    isDynamicModelId(id)
+  );
+}
+
+export function isDynamicModelId(id: string): boolean {
+  return !!getDynamicModelInfo(id);
 }
 
 const FREEFORM_PROVIDERS: ReadonlySet<ProviderId> = new Set([
@@ -657,6 +1304,63 @@ export const MODEL_CONTEXT_LIMITS: Record<string, number> = {
   "mistral-large-latest": 131_072,
   "mistral-medium-latest": 32_768,
   "codestral-latest": 256_000,
+  "zen/gpt-5.5": 400_000,
+  "zen/gpt-5.5-pro": 400_000,
+  "zen/gpt-5.4-mini": 400_000,
+  "zen/gpt-5.4-nano": 1_000_000,
+  "zen/gpt-5.3-codex": 400_000,
+  "zen/gpt-4.1-mini": 1_000_000,
+  "zen/claude-opus-4-8": 1_000_000,
+  "zen/claude-opus-4-7": 1_000_000,
+  "zen/claude-sonnet-4-6": 1_000_000,
+  "zen/claude-haiku-4-5": 1_000_000,
+  "zen/claude-opus-4-6": 1_000_000,
+  "zen/gemini-3.5-flash": 2_000_000,
+  "zen/gemini-3.1-flash-lite": 2_000_000,
+  "zen/gemini-3.1-pro-preview": 2_000_000,
+  "zen/gemini-3-flash-preview": 2_000_000,
+  "zen/gemini-2.5-pro": 1_000_000,
+  "zen/gemini-2.5-flash": 1_000_000,
+  "zen/deepseek-v4-pro": 1_000_000,
+  "zen/deepseek-v4-flash": 1_000_000,
+  "zen/deepseek-reasoner": 128_000,
+  "zen/minimax-m2.7": 256_000,
+  "zen/minimax-m2.5": 256_000,
+  "zen/qwen3.7-max": 256_000,
+  "zen/qwen3.7-plus": 256_000,
+  "zen/qwen3.6-plus": 256_000,
+  "zen/glm-4.7-flash": 256_000,
+  "zen/glm-4.6": 256_000,
+  "zen/kimi-k2.6": 256_000,
+  "zen/kimi-k2.5": 256_000,
+  "zen/grok-4.20": 256_000,
+  "zen/big-pickle-2.5": 32_000,
+  "zen/best-pickle-2.5": 32_000,
+  "zen/mimo-1.7b": 32_000,
+  "go/glm-4.7-flash": 256_000,
+  "go/glm-4.6": 256_000,
+  "go/kimi-k2.7-code": 256_000,
+  "go/kimi-k2.6": 256_000,
+  "go/deepseek-v4-pro": 1_000_000,
+  "go/deepseek-v4-flash": 1_000_000,
+  "go/mimo-1.7b": 32_000,
+  "go/minimax-m3": 256_000,
+  "go/minimax-m2.7": 256_000,
+  "go/minimax-m2.5": 256_000,
+  "go/qwen3.7-max": 256_000,
+  "go/qwen3.7-plus": 256_000,
+  "go/qwen3.6-plus": 256_000,
+  "nvidia/nemotron-nano-9b-v2": 128_000,
+  "nvidia/nemotron-nano-12b-v2": 128_000,
+  "nvidia/nemotron-nano-21b-v2": 128_000,
+  "nvidia/llama-3.3-nemotron-super-49b-v1": 128_000,
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1": 128_000,
+  "nvidia/deepseek-v3-2": 128_000,
+  "nvidia/glm-4.7": 128_000,
+  "nvidia/gpt-oss-120b": 128_000,
+  "nvidia/gpt-oss-20b": 128_000,
+  "nvidia/qwen3-235b": 128_000,
+  "nvidia/mistral-nemotron-ultra-235b": 128_000,
 };
 
 export function getModelContextLimit(
@@ -731,6 +1435,13 @@ export function providerNeedsKey(id: ProviderId): boolean {
   return !KEYLESS_PROVIDERS.includes(id);
 }
 
+/** True when the provider is a cloud service that demands an API key.
+ *  keyOptional providers (e.g. opencode-zen) return false — they are
+ *  usable on the free tier without one. */
+export function providerRequiresKey(id: ProviderId): boolean {
+  return providerNeedsKey(id) && !getProvider(id).keyOptional;
+}
+
 /** True for providers that accept an API key — required *or* optional.
  *  Used by Settings to decide whether to render a key card at all. */
 export function providerSupportsKey(id: ProviderId): boolean {
@@ -755,6 +1466,9 @@ export const DEFAULT_AUTOCOMPLETE_MODEL: Partial<Record<ProviderId, string>> = {
   deepseek: "deepseek-v4-flash",
   openrouter: "openai/gpt-5.4-mini",
   "openai-compatible": "",
+  "opencode-zen": "zen/gpt-5.4-nano",
+  "opencode-go": "go/deepseek-v4-flash",
+  nvidia: "nvidia/nemotron-nano-12b-v2",
 };
 
 /** Curated list of fast models suitable for inline completion (speed ≥ 4). */

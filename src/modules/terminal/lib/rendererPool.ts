@@ -366,8 +366,8 @@ function pickSlotFor(leafId: number): PickResult {
       best = s;
     }
   }
-  const chosen = best!;
-  return { slot: chosen, previousLeafId: chosen.currentLeafId };
+  if (!best) throw new Error("rendererPool: no slot available");
+  return { slot: best, previousLeafId: best.currentLeafId };
 }
 
 export type AcquireParams = {

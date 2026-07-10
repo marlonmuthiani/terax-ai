@@ -3,6 +3,7 @@ import {
   getProvider,
   KEYRING_SERVICE,
   PROVIDERS,
+  providerRequiresKey,
   providerSupportsKey,
   type CustomEndpoint,
   type ProviderId,
@@ -25,6 +26,9 @@ export const EMPTY_PROVIDER_KEYS: ProviderKeys = {
   lmstudio: null,
   mlx: null,
   ollama: null,
+  "opencode-zen": null,
+  "opencode-go": null,
+  nvidia: null,
 };
 
 export async function getKey(provider: ProviderId): Promise<string | null> {
@@ -88,7 +92,9 @@ export async function getAllKeys(): Promise<ProviderKeys> {
 }
 
 export function hasAnyKey(keys: ProviderKeys): boolean {
-  return PROVIDERS.some((p) => providerSupportsKey(p.id) && !!keys[p.id]);
+  return PROVIDERS.some(
+    (p) => !providerRequiresKey(p.id) || !!keys[p.id],
+  );
 }
 
 function compatKeyringAccount(endpointId: string): string {

@@ -50,7 +50,9 @@ async function applyEdits(
       // Recover count via direct search to avoid divide-by-zero edge cases.
       let n = 0;
       let i = 0;
-      while ((i = before.indexOf(e.old_string, i)) !== -1) {
+      while (true) {
+        i = before.indexOf(e.old_string, i);
+        if (i === -1) break;
         n++;
         i += e.old_string.length;
       }

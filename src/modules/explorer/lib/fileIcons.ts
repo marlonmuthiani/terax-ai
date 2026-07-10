@@ -2657,24 +2657,16 @@ const fileIcons: FileIcons = {
 const { languageIds, fileExtensions, fileNames } = Object.entries(
   fileIcons,
 ).reduce(
-  ({ languageIds, fileExtensions, fileNames }, [name, icon]) => ({
-    languageIds: {
-      ...languageIds,
-      ...icon.languageIds?.reduce((a, c) => ({ ...a, [c]: name }), {}),
-    },
-    fileExtensions: {
-      ...fileExtensions,
-      ...icon.fileExtensions?.reduce((a, c) => ({ ...a, [c]: name }), {}),
-    },
-    fileNames: {
-      ...fileNames,
-      ...icon.fileNames?.reduce((a, c) => ({ ...a, [c]: name }), {}),
-    },
-  }),
+  (acc, [name, icon]) => {
+    for (const c of icon.languageIds ?? []) acc.languageIds[c] = name;
+    for (const c of icon.fileExtensions ?? []) acc.fileExtensions[c] = name;
+    for (const c of icon.fileNames ?? []) acc.fileNames[c] = name;
+    return acc;
+  },
   {
-    languageIds: {},
-    fileExtensions: {},
-    fileNames: {},
+    languageIds: {} as Record<string, string>,
+    fileExtensions: {} as Record<string, string>,
+    fileNames: {} as Record<string, string>,
   },
 );
 

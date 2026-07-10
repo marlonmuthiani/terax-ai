@@ -32,7 +32,10 @@ export function PaneTreeView(props: Props) {
     const focused = node.id === activeLeafId;
     const b = getBundle(node.id);
     return (
+      // biome-ignore lint/a11y/noStaticElementInteractions: container captures DOM focus for the terminal pane; role=presentation is intentional.
       <div
+        role="presentation"
+        tabIndex={-1}
         onMouseDownCapture={() => {
           if (!focused) onFocusLeaf(node.id);
         }}

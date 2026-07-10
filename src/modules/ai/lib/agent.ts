@@ -8,6 +8,7 @@ import {
   type UIMessage,
 } from "ai";
 import {
+  apiModelId,
   DEFAULT_MODEL_ID,
   endpointIdFromCompatModel,
   getModelContextLimit,
@@ -17,10 +18,11 @@ import {
   MLX_DEFAULT_BASE_URL,
   modelKeepsReasoning,
   OLLAMA_DEFAULT_BASE_URL,
-  providerNeedsKey,
+  providerRequiresKey,
   resolveModel,
   selectSystemPrompt,
   type CustomEndpoint,
+  type ModelInfo,
   type ProviderId,
 } from "../config";
 import { buildTools, type ToolContext } from "../tools/tools";
@@ -73,25 +75,36 @@ export type BuildModelOptions = {
 
 const modelCache = new Map<string, LanguageModel>();
 
+/** Base URL for the aggregator/dynamic providers (keyless-friendly). */
+const PROVIDER_API_BASE: Record<
+  "opencode-zen" | "opencode-go" | "nvidia",
+  string
+> = {
+  "opencode-zen": "https://api.opencode.ai/zen/v1",
+  "opencode-go": "https://api.opencode.ai/go/v1",
+  "nvidia": "https://integrate.api.nvidia.com/v1",
+};
+
 export async function buildLanguageModel(
   provider: ProviderId,
   keys: ProviderKeys,
-  resolvedModelId: string,
+  model: ModelInfo,
   options: BuildModelOptions = {},
   customEndpointKey?: string | null,
 ): Promise<LanguageModel> {
-  if (providerNeedsKey(provider) && !keys[provider]) {
+  if (providerRequiresKey(provider) && !keys[provider]) {
     throw new Error(
       `No API key configured for ${provider}. Open Settings → AI to add one.`,
     );
   }
   const key = keys[provider] ?? "";
+  const resolvedModelId = apiModelId(model);
   const lmstudioURL = options.lmstudioBaseURL ?? LMSTUDIO_DEFAULT_BASE_URL;
   const mlxURL = options.mlxBaseURL ?? MLX_DEFAULT_BASE_URL;
   const ollamaURL = options.ollamaBaseURL ?? OLLAMA_DEFAULT_BASE_URL;
   const compatURL = options.openaiCompatibleBaseURL ?? "";
   const epKey = customEndpointKey ?? "";
-  const cacheKey = `${provider} ${key} ${epKey} ${resolvedModelId} ${lmstudioURL} ${mlxURL} ${ollamaURL} ${compatURL}`;
+  const cacheKey = `${provider} ${key} ${epKey} ${model.id} ${lmstudioURL} ${mlxURL} ${ollamaURL} ${compatURL}`;
   const hit = modelCache.get(cacheKey);
   if (hit) return hit;
 
@@ -207,6 +220,37 @@ export async function buildLanguageModel(
       })(resolvedModelId);
       break;
     }
+    case "opencode-zen":
+    case "opencode-go":
+    case "nvidia": {
+      const baseURL = PROVIDER_API_BASE[provider];
+      const authKey = key || undefined;
+      const style = model.apiStyle ?? "openai-compatible";
+      if (style === "anthropic") {
+        const { createAnthropic } = await import("@ai-sdk/anthropic");
+        built = createAnthropic({ apiKey: authKey, baseURL })(resolvedModelId);
+      } else if (style === "google") {
+        const { createGoogleGenerativeAI } = await import("@ai-sdk/google");
+        built = createGoogleGenerativeAI({ apiKey: authKey, baseURL })(
+          resolvedModelId,
+        );
+      } else if (style === "openai") {
+        const { createOpenAI } = await import("@ai-sdk/openai");
+        const oai = createOpenAI({ apiKey: authKey, baseURL });
+        const responses = (
+          oai as unknown as { responses?: (id: string) => LanguageModel }
+        ).responses;
+        built = responses ? responses.call(oai, resolvedModelId) : oai(resolvedModelId);
+      } else {
+        const { createOpenAICompatible } = await import("@ai-sdk/openai-compatible");
+        built = createOpenAICompatible({
+          name: provider,
+          baseURL,
+          apiKey: authKey,
+        })(resolvedModelId);
+      }
+      break;
+    }
     default: {
       const _exhaustive: never = provider;
       throw new Error(`Unsupported provider: ${_exhaustive as ProviderId}`);
@@ -244,10 +288,18 @@ export function buildConfiguredLanguageModel(
         `${ep.name}: no model id set. Open Settings → Models.`,
       );
     }
+    const compatModel: ModelInfo = {
+      id: ep.modelId.trim(),
+      provider: "openai-compatible",
+      label: ep.name,
+      hint: "Custom",
+      description: `${ep.name} — ${ep.baseURL}`,
+      capabilities: { intelligence: 3, speed: 3, cost: 3 },
+    };
     return buildLanguageModel(
       "openai-compatible",
       keys,
-      ep.modelId.trim(),
+      compatModel,
       { openaiCompatibleBaseURL: ep.baseURL },
       local.customEndpointKeys?.[eid],
     );
@@ -290,12 +342,17 @@ export function buildConfiguredLanguageModel(
     }
     resolvedId = local.openrouterModelId.trim();
   }
-  return buildLanguageModel(m.provider, keys, resolvedId, {
-    lmstudioBaseURL: local.lmstudioBaseURL,
-    mlxBaseURL: local.mlxBaseURL,
-    ollamaBaseURL: local.ollamaBaseURL,
-    openaiCompatibleBaseURL: local.openaiCompatibleBaseURL,
-  });
+  return buildLanguageModel(
+    m.provider,
+    keys,
+    { ...m, id: resolvedId },
+    {
+      lmstudioBaseURL: local.lmstudioBaseURL,
+      mlxBaseURL: local.mlxBaseURL,
+      ollamaBaseURL: local.ollamaBaseURL,
+      openaiCompatibleBaseURL: local.openaiCompatibleBaseURL,
+    },
+  );
 }
 
 const PLAN_MODE_PROMPT = `## PLAN MODE — ACTIVE

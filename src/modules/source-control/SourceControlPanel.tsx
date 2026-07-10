@@ -477,7 +477,9 @@ export const SourceControlPanel = memo(function SourceControlPanel({
 
   const rowKeyToIndex = useMemo(() => {
     const map = new Map<string, number>();
-    rows.forEach((row, index) => map.set(row.key, index));
+    rows.forEach((row, index) => {
+      map.set(row.key, index);
+    });
     return map;
   }, [rows]);
 
@@ -525,7 +527,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
       if (focusableIndices.length === 0) return;
       const currentIndex =
         focusedRowKey === null ? -1 : (rowKeyToIndex.get(focusedRowKey) ?? -1);
-      let pos = focusableIndices.findIndex((i) => i === currentIndex);
+      let pos = focusableIndices.indexOf(currentIndex);
       if (pos === -1) pos = direction > 0 ? -1 : focusableIndices.length;
       let nextPos = pos + direction;
       if (nextPos < 0) nextPos = 0;
@@ -597,7 +599,7 @@ export const SourceControlPanel = memo(function SourceControlPanel({
         case "D": {
           if (meta) break;
           const entry = focusedEntry();
-          if (entry && entry.unstaged) {
+          if (entry?.unstaged) {
             event.preventDefault();
             scm.requestDiscardFile(entry);
           }
@@ -1101,9 +1103,13 @@ function ListHeader({
       <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full border border-border/60 px-1 text-[9.5px] font-semibold tabular-nums text-muted-foreground">
         {row.count}
       </span>
-      <label className="ml-auto flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-[10.5px] font-medium text-muted-foreground hover:text-foreground">
+      <label
+        htmlFor={`scm-header-all-${row.key}`}
+        className="ml-auto flex shrink-0 cursor-pointer select-none items-center gap-1.5 text-[10.5px] font-medium text-muted-foreground hover:text-foreground"
+      >
         <span>All</span>
         <Checkbox
+          id={`scm-header-all-${row.key}`}
           aria-label="Stage all changes"
           checked={checkboxValue(headerCheckState)}
           disabled={actionBusy !== null}
@@ -1155,6 +1161,7 @@ const EntryRow = memo(function EntryRow({
           data-focused={focused || undefined}
           data-selected={isSelected || undefined}
           role="option"
+          tabIndex={-1}
           aria-selected={isSelected}
           onMouseDown={() => onFocusRow(row.key)}
           className={cn(

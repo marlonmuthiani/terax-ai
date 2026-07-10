@@ -220,7 +220,7 @@ export function GeneralSection() {
                   <TooltipTrigger asChild>
                     <span
                       className="cursor-help text-[11px] text-muted-foreground/70 leading-none"
-                      aria-label="More info about WebGL renderer"
+                      title="More info about WebGL renderer"
                     >
                       ⓘ
                     </span>

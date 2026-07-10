@@ -128,7 +128,7 @@ export function TabBar({
 
   useLayoutEffect(() => {
     measurePill();
-  }, [measurePill, activeId, tabs]);
+  }, [measurePill]);
 
   useEffect(() => {
     const list = listRef.current;
@@ -352,12 +352,18 @@ export function TabBar({
                         }}
                       >
                         <DropdownMenuTrigger asChild>
-                          {/* span, not button: a button nested in the TabsTrigger button is invalid DOM and breaks WebKit focus. */}
+                          {/* biome-ignore lint/a11y/useSemanticElements: a real <button> nested in the TabsTrigger button is invalid DOM and breaks WebKit focus. */}
                           <span
                             role="button"
                             tabIndex={-1}
                             data-no-drag
                             className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm p-1 -m-1 transition-all hover:bg-accent hover:text-accent-foreground hover:ring-1 hover:ring-primary/30 hover:shadow-[0_0_4px_var(--color-popover-foreground)]"
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                (e.currentTarget as HTMLElement).click();
+                              }
+                            }}
                           >
                             <TabIcon tab={t} />
                           </span>
@@ -449,19 +455,28 @@ export function TabBar({
                     </span>
                     {t.kind === "editor" && t.dirty ? (
                       <span
-                        aria-label="Unsaved changes"
+                        title="Unsaved changes"
                         className="size-1.5 shrink-0 rounded-full bg-foreground/70"
                       />
                     ) : null}
                   </span>
                   {tabs.length > 1 && (
+                    // biome-ignore lint/a11y/useSemanticElements: this close affordance sits inside the TabsTrigger button; a nested <button> is invalid DOM.
                     <span
                       role="button"
                       aria-label="Close tab"
+                      tabIndex={0}
                       data-no-drag
                       onClick={(e) => {
                         e.stopPropagation();
                         onClose(t.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          onClose(t.id);
+                        }
                       }}
                       className="rounded p-0.5 opacity-0 transition-opacity hover:bg-accent hover:opacity-100 group-hover:opacity-60"
                     >

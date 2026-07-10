@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  apiModelId,
   compatModelIdForEndpoint,
   endpointIdFromCompatModel,
   getModelContextLimit,
   isCompatModelId,
+  isKnownModelId,
   migrateLegacyCompatEndpoint,
+  MODEL_ID_PREFIX,
   modelKeepsReasoning,
+  PROVIDERS,
+  providerNeedsKey,
+  providerRequiresKey,
   resolveModel,
   type CustomEndpoint,
 } from "./config";
@@ -100,5 +106,69 @@ describe("migrateLegacyCompatEndpoint", () => {
   it("skips migration when base URL or model id is missing", () => {
     expect(migrateLegacyCompatEndpoint("", "m", 1, "x")).toEqual([]);
     expect(migrateLegacyCompatEndpoint("u", "  ", 1, "x")).toEqual([]);
+  });
+});
+
+describe("aggregator providers (opencode-zen, opencode-go, nvidia)", () => {
+  it("registers all three providers", () => {
+    const ids = PROVIDERS.map((p) => p.id);
+    expect(ids).toContain("opencode-zen");
+    expect(ids).toContain("opencode-go");
+    expect(ids).toContain("nvidia");
+  });
+
+  it("treats the new providers as cloud (key needed, not local)", () => {
+    expect(providerNeedsKey("opencode-zen")).toBe(true);
+    expect(providerNeedsKey("opencode-go")).toBe(true);
+    expect(providerNeedsKey("nvidia")).toBe(true);
+  });
+
+  it("does not require a key for keyOptional providers but requires it for nvidia", () => {
+    expect(providerRequiresKey("opencode-zen")).toBe(false);
+    expect(providerRequiresKey("opencode-go")).toBe(false);
+    expect(providerRequiresKey("nvidia")).toBe(true);
+  });
+
+  it("prefixes model ids so they never collide with canonical ids", () => {
+    expect(MODEL_ID_PREFIX["opencode-zen"]).toBe("zen/");
+    expect(MODEL_ID_PREFIX["opencode-go"]).toBe("go/");
+    expect(MODEL_ID_PREFIX.nvidia).toBe("nvidia/");
+  });
+
+  it("strips the prefix at request time via apiModelId", () => {
+    expect(apiModelId(resolveModel("zen/gpt-5.4-nano"))).toBe("gpt-5.4-nano");
+    expect(apiModelId(resolveModel("go/deepseek-v4-flash"))).toBe(
+      "deepseek-v4-flash",
+    );
+    expect(apiModelId(resolveModel("nvidia/nemotron-nano-12b-v2"))).toBe(
+      "nemotron-nano-12b-v2",
+    );
+  });
+
+  it("resolves static models for each new provider", () => {
+    expect(resolveModel("zen/gpt-5.4-nano").provider).toBe("opencode-zen");
+    expect(resolveModel("go/deepseek-v4-flash").provider).toBe("opencode-go");
+    expect(resolveModel("nvidia/nemotron-nano-12b-v2").provider).toBe("nvidia");
+  });
+
+  it("exposes the wire apiStyle per model", () => {
+    expect(resolveModel("zen/claude-opus-4-8").apiStyle).toBe("anthropic");
+    expect(resolveModel("zen/gemini-3.5-flash").apiStyle).toBe("google");
+    expect(resolveModel("zen/gpt-5.5").apiStyle).toBe("openai");
+    expect(resolveModel("nvidia/nemotron-nano-12b-v2").apiStyle).toBe(
+      "openai-compatible",
+    );
+  });
+
+  it("reports the new provider models as known", () => {
+    expect(isKnownModelId("zen/gpt-5.4-nano")).toBe(true);
+    expect(isKnownModelId("go/deepseek-v4-flash")).toBe(true);
+    expect(isKnownModelId("nvidia/nemotron-nano-12b-v2")).toBe(true);
+    expect(isKnownModelId("zen/does-not-exist")).toBe(false);
+  });
+
+  it("maps context limits for the new provider models", () => {
+    expect(getModelContextLimit("zen/gpt-5.4-nano")).toBe(1_000_000);
+    expect(getModelContextLimit("nvidia/nemotron-nano-12b-v2")).toBe(128_000);
   });
 });

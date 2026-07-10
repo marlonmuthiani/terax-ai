@@ -564,17 +564,12 @@ const folderIcons: FolderIcons = {
 };
 
 const { folderNames } = Object.entries(folderIcons).reduce(
-  ({ folderNames }, [name, icon]) => ({
-    folderNames: {
-      ...folderNames,
-      ...icon.folderNames?.reduce(
-        (a, c) => ({ ...a, [c]: `folder_${name}` }),
-        {},
-      ),
-    },
-  }),
+  (acc, [name, icon]) => {
+    for (const c of icon.folderNames ?? []) acc.folderNames[c] = `folder_${name}`;
+    return acc;
+  },
   {
-    folderNames: {},
+    folderNames: {} as Record<string, string>,
   },
 );
 
